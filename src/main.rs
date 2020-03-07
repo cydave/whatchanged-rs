@@ -39,6 +39,18 @@ impl fmt::Display for SHASumEntry {
 }
 
 impl SHASumEntry {
+    fn from_line(line: String) -> Option<Self> {
+        let vec = line.trim().splitn(2, "  ").collect::<Vec<&str>>();
+        if vec.len() == 2 {
+            return Some(Self {
+                checksum: String::from(vec[0]),
+                filepath: String::from(vec[1]),
+                status: FileStatus::UNKNOWN,
+            });
+        }
+        None
+    }
+
     fn _calculate_checksum(&self) -> std::io::Result<Digest> {
         let input = File::open(&self.filepath)?;
         let mut context = Context::new(&SHA256);
@@ -133,28 +145,22 @@ impl Iterator for SHASumFile {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut line = String::new();
-        return match self.reader.read_line(&mut line) {
-            Ok(_) => {
-                let vec = line.trim().splitn(2, "  ").collect::<Vec<&str>>();
-                if vec.len() != 2 {
-                    return None;
+        match self.reader.read_line(&mut line) {
+            Ok(_) => match SHASumEntry::from_line(line) {
+                Some(mut entry) => {
+                    match entry.check() {
+                        FileStatus::OK => self.num_ok += 1,
+                        FileStatus::REMOVED => self.num_removed += 1,
+                        FileStatus::MISMATCH => self.num_mismatch += 1,
+                        FileStatus::FAILED => self.num_failed += 1,
+                        FileStatus::UNKNOWN => {}
+                    };
+                    Some(entry)
                 }
-                let mut entry = SHASumEntry {
-                    checksum: String::from(vec[0]),
-                    filepath: String::from(vec[1]),
-                    status: FileStatus::UNKNOWN,
-                };
-                match entry.check() {
-                    FileStatus::OK => self.num_ok += 1,
-                    FileStatus::REMOVED => self.num_removed += 1,
-                    FileStatus::MISMATCH => self.num_mismatch += 1,
-                    FileStatus::FAILED => self.num_failed += 1,
-                    FileStatus::UNKNOWN => {}
-                };
-                Some(entry)
-            }
+                None => None,
+            },
             Err(_) => None,
-        };
+        }
     }
 }
 
