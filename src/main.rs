@@ -111,7 +111,7 @@ impl SHASumFile {
         })
     }
 
-    fn print_summary(&self) -> i32 {
+    fn print_summary(&self) {
         if self.num_removed > 0 {
             if self.num_removed == 1 {
                 eprintln!("WARNING: {} file has been removed", self.num_removed);
@@ -133,10 +133,10 @@ impl SHASumFile {
                 eprintln!("WARNING: {} files could not be read", self.num_failed);
             }
         }
-        if self.num_removed == 0 && self.num_mismatch == 0 && self.num_failed == 0 {
-            return 0;
-        }
-        return 1;
+    }
+
+    fn has_errors(&self) -> bool {
+        self.num_failed > 0 || self.num_removed > 0 || self.num_mismatch > 0
     }
 }
 
@@ -145,22 +145,16 @@ impl Iterator for SHASumFile {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut line = String::new();
-        match self.reader.read_line(&mut line) {
-            Ok(_) => match SHASumEntry::from_line(line) {
-                Some(mut entry) => {
-                    match entry.check() {
-                        FileStatus::OK => self.num_ok += 1,
-                        FileStatus::REMOVED => self.num_removed += 1,
-                        FileStatus::MISMATCH => self.num_mismatch += 1,
-                        FileStatus::FAILED => self.num_failed += 1,
-                        FileStatus::UNKNOWN => {}
-                    };
-                    Some(entry)
-                }
-                None => None,
-            },
-            Err(_) => None,
+        self.reader.read_line(&mut line).unwrap();
+        let mut entry = SHASumEntry::from_line(line)?;
+        match entry.check() {
+            FileStatus::OK => self.num_ok += 1,
+            FileStatus::REMOVED => self.num_removed += 1,
+            FileStatus::MISMATCH => self.num_mismatch += 1,
+            FileStatus::FAILED => self.num_failed += 1,
+            FileStatus::UNKNOWN => {}
         }
+        Some(entry)
     }
 }
 
@@ -171,8 +165,10 @@ fn main() {
             for entry in shasum_file.by_ref() {
                 println!("{}", entry);
             }
-            let exit_status = shasum_file.print_summary();
-            process::exit(exit_status);
+            shasum_file.print_summary();
+            if shasum_file.has_errors() {
+                process::exit(1);
+            }
         }
         Err(e) => {
             eprintln!("{}: {}", "Error".red().bold(), e);
