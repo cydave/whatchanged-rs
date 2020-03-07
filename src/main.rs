@@ -41,14 +41,14 @@ impl fmt::Display for SHASumEntry {
 impl SHASumEntry {
     fn from_line(line: String) -> Option<Self> {
         let vec = line.trim().splitn(2, "  ").collect::<Vec<&str>>();
-        if vec.len() == 2 {
-            return Some(Self {
-                checksum: String::from(vec[0]),
-                filepath: String::from(vec[1]),
-                status: FileStatus::UNKNOWN,
-            });
+        if vec.len() != 2 {
+            return None;
         }
-        None
+        Some(Self {
+            checksum: String::from(vec[0]),
+            filepath: String::from(vec[1]),
+            status: FileStatus::UNKNOWN,
+        })
     }
 
     fn _calculate_checksum(&self) -> std::io::Result<Digest> {
@@ -86,7 +86,7 @@ impl SHASumEntry {
             return &self.status;
         }
         self.status = FileStatus::OK;
-        return &self.status;
+        &self.status
     }
 }
 
@@ -99,11 +99,11 @@ struct SHASumFile {
 }
 
 impl SHASumFile {
-    fn new(path: &str) -> std::io::Result<SHASumFile> {
+    fn new(path: &str) -> std::io::Result<Self> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         Ok(SHASumFile {
-            reader: reader,
+            reader,
             num_ok: 0,
             num_removed: 0,
             num_mismatch: 0,
@@ -153,7 +153,7 @@ impl Iterator for SHASumFile {
             FileStatus::MISMATCH => self.num_mismatch += 1,
             FileStatus::FAILED => self.num_failed += 1,
             FileStatus::UNKNOWN => {}
-        }
+        };
         Some(entry)
     }
 }
