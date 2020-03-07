@@ -86,7 +86,6 @@ struct SHASumFile {
     num_failed: usize,
 }
 
-
 impl SHASumFile {
     fn new(path: &str) -> std::io::Result<SHASumFile> {
         let file = File::open(path)?;
